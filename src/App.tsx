@@ -17,6 +17,7 @@ import {
   getAvailableSymbols,
   formatCurrency,
 } from './utils/stockData';
+import { fetchStockQuote, fetchCandleData } from './utils/yahooFinance';
 import { captureScreenshot } from './utils/screenshot';
 import { Portfolio, Trade, TimeRange, StockQuote, CandleData, OptionsContract } from './types/trading';
 import { Camera, Search, BarChart3, Wallet, Clock, Settings, Activity } from 'lucide-react';
@@ -112,21 +113,51 @@ function App() {
   const watchlistSymbols = getAvailableSymbols();
 
   useEffect(() => {
-    const newQuote = getStockQuote(selectedSymbol);
-    setQuote(newQuote);
-    const newCandles = generateCandleData(selectedSymbol, timeRange);
-    setCandleData(newCandles);
-    setAnimatedCandles(newCandles);
-    if (activeTab === 'options') {
-      setOptionsData(generateOptionsChain(selectedSymbol, newQuote.price));
+    let cancelled = false;
+
+    async function loadData() {
+      // Try fetching real data first
+      const [realQuote, realCandles] = await Promise.all([
+        fetchStockQuote(selectedSymbol),
+        fetchCandleData(selectedSymbol, timeRange),
+      ]);
+
+      if (cancelled) return;
+
+      if (realQuote) {
+        setQuote(realQuote);
+        if (activeTab === 'options') {
+          setOptionsData(generateOptionsChain(selectedSymbol, realQuote.price));
+        }
+      } else {
+        const fallbackQuote = getStockQuote(selectedSymbol);
+        setQuote(fallbackQuote);
+        if (activeTab === 'options') {
+          setOptionsData(generateOptionsChain(selectedSymbol, fallbackQuote.price));
+        }
+      }
+
+      if (realCandles && realCandles.length > 0) {
+        setCandleData(realCandles);
+        setAnimatedCandles(realCandles);
+      } else {
+        const fallbackCandles = generateCandleData(selectedSymbol, timeRange);
+        setCandleData(fallbackCandles);
+        setAnimatedCandles(fallbackCandles);
+      }
     }
+
+    loadData();
+    return () => { cancelled = true; };
   }, [selectedSymbol, timeRange, activeTab]);
 
   // Live price updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newQuote = getStockQuote(selectedSymbol);
-      setQuote(newQuote);
+    const interval = setInterval(async () => {
+      const realQuote = await fetchStockQuote(selectedSymbol);
+      if (realQuote) {
+        setQuote(realQuote);
+      }
       
       // Update position prices in portfolio
       setPortfolio(prev => {
@@ -155,7 +186,7 @@ function App() {
           dayGainPercent: (dayGain / (totalValue - dayGain)) * 100,
         };
       });
-    }, 2000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [selectedSymbol]);
 
