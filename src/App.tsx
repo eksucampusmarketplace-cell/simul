@@ -10,6 +10,7 @@ import { VideoRecorder } from './components/VideoRecorder';
 import { Watchlist } from './components/Watchlist';
 import { LiveTicker } from './components/LiveTicker';
 import { OrderNotification } from './components/OrderNotification';
+import { AutoTradeGenerator } from './components/AutoTradeGenerator';
 import { 
   getStockQuote, 
   generateCandleData, 
@@ -20,9 +21,9 @@ import {
 import { fetchStockQuote, fetchCandleData } from './utils/yahooFinance';
 import { captureScreenshot } from './utils/screenshot';
 import { Portfolio, Trade, TimeRange, StockQuote, CandleData, OptionsContract } from './types/trading';
-import { Camera, Search, BarChart3, Wallet, Clock, Settings, Activity } from 'lucide-react';
+import { Camera, Search, BarChart3, Wallet, Clock, Settings, Activity, Menu, X, Zap } from 'lucide-react';
 
-type TabView = 'chart' | 'options' | 'portfolio' | 'history';
+type TabView = 'chart' | 'options' | 'portfolio' | 'history' | 'autotrade';
 
 function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('TSLA');
@@ -37,6 +38,7 @@ function App() {
   const [isAnimating, setIsAnimating] = useState(false);
   const animationRef = useRef<number | null>(null);
   const [animatedCandles, setAnimatedCandles] = useState<CandleData[]>([]);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const [portfolio, setPortfolio] = useState<Portfolio>({
     totalValue: 127843.56,
@@ -300,6 +302,70 @@ function App() {
     setSelectedSymbol(symbol);
     setShowSearch(false);
     setSearchQuery('');
+    setShowMobileSidebar(false);
+  }, []);
+
+  const handleAutoTradeGenerate = useCallback((tradeData: Omit<Trade, 'id' | 'timestamp' | 'status'>, _profit: number) => {
+    const newTrade: Trade = {
+      ...tradeData,
+      id: `TRD-${Date.now()}`,
+      timestamp: new Date(),
+      status: 'Filled',
+    };
+    setLastTrade(newTrade);
+    setPortfolio(prev => ({
+      ...prev,
+      trades: [newTrade, ...prev.trades],
+    }));
+  }, []);
+
+  const handleAutoUpdatePortfolio = useCallback((symbol: string, quantity: number, avgCost: number, currentPrice: number, name: string) => {
+    setPortfolio(prev => {
+      const existingPos = prev.positions.find(p => p.symbol === symbol);
+      let newPositions = [...prev.positions];
+      if (existingPos) {
+        newPositions = newPositions.map(p =>
+          p.symbol === symbol
+            ? {
+                ...p,
+                quantity,
+                avgCost,
+                currentPrice,
+                totalValue: quantity * currentPrice,
+                totalGain: (currentPrice - avgCost) * quantity,
+                totalGainPercent: ((currentPrice - avgCost) / avgCost) * 100,
+                dayGain: (currentPrice - avgCost) * quantity * 0.1,
+                dayGainPercent: ((currentPrice - avgCost) / avgCost) * 10,
+              }
+            : p
+        );
+      } else {
+        newPositions.push({
+          symbol,
+          name,
+          quantity,
+          avgCost,
+          currentPrice,
+          totalValue: quantity * currentPrice,
+          totalGain: (currentPrice - avgCost) * quantity,
+          totalGainPercent: ((currentPrice - avgCost) / avgCost) * 100,
+          dayGain: (currentPrice - avgCost) * quantity * 0.1,
+          dayGainPercent: ((currentPrice - avgCost) / avgCost) * 10,
+        });
+      }
+      const totalValue = newPositions.reduce((sum, p) => sum + p.totalValue, 0) + prev.buyingPower;
+      const totalGain = newPositions.reduce((sum, p) => sum + p.totalGain, 0);
+      const dayGain = newPositions.reduce((sum, p) => sum + p.dayGain, 0);
+      return {
+        ...prev,
+        positions: newPositions,
+        totalValue,
+        totalGain,
+        totalGainPercent: (totalGain / (totalValue - totalGain)) * 100,
+        dayGain,
+        dayGainPercent: (dayGain / (totalValue - dayGain)) * 100,
+      };
+    });
   }, []);
 
   const filteredSymbols = searchQuery
@@ -313,14 +379,22 @@ function App() {
     <div className="min-h-screen bg-[#0b0e11] text-white font-sans" id="trading-app">
       {/* Top Navigation Bar */}
       <header className="bg-[#0b0e11] border-b border-[#2b3139] sticky top-0 z-40">
-        <div className="flex items-center justify-between px-4 py-2">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between px-2 sm:px-4 py-2">
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+              className="lg:hidden p-1.5 rounded bg-[#1e2329]"
+            >
+              {showMobileSidebar ? <X size={16} /> : <Menu size={16} />}
+            </button>
+
             <div className="flex items-center gap-2">
               <Activity size={20} className="text-[#f0b90b]" />
-              <span className="font-bold text-sm">TradeView Pro</span>
+              <span className="font-bold text-sm hidden sm:inline">TradeView Pro</span>
             </div>
             
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <div className="flex items-center bg-[#1e2329] rounded px-3 py-1.5">
                 <Search size={14} className="text-[#848e9c] mr-2" />
                 <input
@@ -360,8 +434,8 @@ function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="hidden sm:flex items-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${marketHours ? 'bg-[#0ecb81]' : 'bg-[#f6465d]'}`} />
               <span className="text-xs text-[#848e9c]">
                 {marketHours ? 'Market Open' : 'Market Closed'}
@@ -372,13 +446,13 @@ function App() {
             
             <button
               onClick={() => captureScreenshot('main-content')}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2b3139] text-white text-xs rounded hover:bg-[#3b4149] transition-colors"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-[#2b3139] text-white text-xs rounded hover:bg-[#3b4149] transition-colors"
             >
               <Camera size={12} />
-              Screenshot
+              <span className="hidden sm:inline">Screenshot</span>
             </button>
 
-            <div className="flex items-center gap-1 text-xs text-[#848e9c]">
+            <div className="hidden md:flex items-center gap-1 text-xs text-[#848e9c]">
               <Clock size={12} />
               <span>{currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
             </div>
@@ -387,6 +461,32 @@ function App() {
         
         <LiveTicker />
       </header>
+
+      {/* Mobile Sidebar Overlay */}
+      {showMobileSidebar && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileSidebar(false)} />
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-[#0b0e11] border-r border-[#2b3139] overflow-y-auto">
+            <div className="p-3 border-b border-[#2b3139]">
+              <div className="flex items-center bg-[#1e2329] rounded px-3 py-1.5">
+                <Search size={14} className="text-[#848e9c] mr-2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setShowSearch(true); }}
+                  placeholder="Search symbol..."
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder-[#848e9c]"
+                />
+              </div>
+            </div>
+            <Watchlist
+              symbols={watchlistSymbols}
+              selectedSymbol={selectedSymbol}
+              onSelectSymbol={handleSelectStock}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex h-[calc(100vh-80px)]">
@@ -409,10 +509,10 @@ function App() {
           />
 
           {/* Tab Navigation */}
-          <div className="flex items-center border-b border-[#2b3139] px-4">
+          <div className="flex items-center border-b border-[#2b3139] px-2 sm:px-4 overflow-x-auto">
             <button
               onClick={() => setActiveTab('chart')}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === 'chart'
                   ? 'border-[#f0b90b] text-[#f0b90b]'
                   : 'border-transparent text-[#848e9c] hover:text-white'
@@ -423,7 +523,7 @@ function App() {
             </button>
             <button
               onClick={() => setActiveTab('options')}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === 'options'
                   ? 'border-[#f0b90b] text-[#f0b90b]'
                   : 'border-transparent text-[#848e9c] hover:text-white'
@@ -434,7 +534,7 @@ function App() {
             </button>
             <button
               onClick={() => setActiveTab('portfolio')}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === 'portfolio'
                   ? 'border-[#f0b90b] text-[#f0b90b]'
                   : 'border-transparent text-[#848e9c] hover:text-white'
@@ -445,7 +545,7 @@ function App() {
             </button>
             <button
               onClick={() => setActiveTab('history')}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === 'history'
                   ? 'border-[#f0b90b] text-[#f0b90b]'
                   : 'border-transparent text-[#848e9c] hover:text-white'
@@ -453,6 +553,17 @@ function App() {
             >
               <Clock size={14} />
               Orders
+            </button>
+            <button
+              onClick={() => setActiveTab('autotrade')}
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === 'autotrade'
+                  ? 'border-[#f0b90b] text-[#f0b90b]'
+                  : 'border-transparent text-[#848e9c] hover:text-white'
+              }`}
+            >
+              <Zap size={14} />
+              Auto Trade
             </button>
 
             {activeTab === 'chart' && (
@@ -506,11 +617,19 @@ function App() {
             {activeTab === 'history' && (
               <TradeHistory trades={portfolio.trades} />
             )}
+            {activeTab === 'autotrade' && (
+              <div className="p-2 sm:p-4 max-w-lg mx-auto">
+                <AutoTradeGenerator
+                  onGenerateTrade={handleAutoTradeGenerate}
+                  onUpdatePortfolio={handleAutoUpdatePortfolio}
+                />
+              </div>
+            )}
           </div>
         </main>
 
         {/* Right Sidebar - Trade Panel */}
-        <aside className="w-72 border-l border-[#2b3139] overflow-y-auto hidden xl:block">
+        <aside className="w-72 border-l border-[#2b3139] overflow-y-auto hidden xl:block" id="trade-sidebar">
           <div className="p-3 border-b border-[#2b3139]">
             <h3 className="text-xs font-medium text-[#848e9c] uppercase tracking-wider">Place Order</h3>
           </div>
