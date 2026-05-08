@@ -1,7 +1,11 @@
 import { StockQuote, CandleData } from '../types/trading';
 
-const CORS_PROXY = 'https://corsproxy.io/?';
-const YAHOO_BASE = 'https://query1.finance.yahoo.com';
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+  '',
+];
+const YAHOO_BASE = 'https://query2.finance.yahoo.com';
 
 const STOCK_NAMES: Record<string, string> = {
   AAPL: 'Apple Inc.',
@@ -59,11 +63,32 @@ function getIntervalAndRange(timeRange: string): { interval: string; range: stri
   }
 }
 
+async function fetchWithProxies(targetUrl: string): Promise<Response | null> {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const url = proxy ? `${proxy}${encodeURIComponent(targetUrl)}` : targetUrl;
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const text = await response.text();
+        if (text && !text.includes('Server-side requests') && !text.includes('Too Many Requests')) {
+          return new Response(text, { status: 200 });
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 export async function fetchStockQuote(symbol: string): Promise<StockQuote | null> {
   try {
-    const url = `${CORS_PROXY}${encodeURIComponent(`${YAHOO_BASE}/v8/finance/chart/${symbol}?interval=1d&range=1d`)}`;
-    const response = await fetch(url);
-    if (!response.ok) return null;
+    const targetUrl = `${YAHOO_BASE}/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+    const response = await fetchWithProxies(targetUrl);
+    if (!response) return null;
     
     const data: YahooChartResult = await response.json();
     const result = data?.chart?.result?.[0];
@@ -96,9 +121,9 @@ export async function fetchStockQuote(symbol: string): Promise<StockQuote | null
 export async function fetchCandleData(symbol: string, timeRange: string): Promise<CandleData[] | null> {
   try {
     const { interval, range } = getIntervalAndRange(timeRange);
-    const url = `${CORS_PROXY}${encodeURIComponent(`${YAHOO_BASE}/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`)}`;
-    const response = await fetch(url);
-    if (!response.ok) return null;
+    const targetUrl = `${YAHOO_BASE}/v8/finance/chart/${symbol}?interval=${interval}&range=${range}`;
+    const response = await fetchWithProxies(targetUrl);
+    if (!response) return null;
 
     const data: YahooChartResult = await response.json();
     const result = data?.chart?.result?.[0];

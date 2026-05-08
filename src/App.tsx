@@ -11,6 +11,7 @@ import { Watchlist } from './components/Watchlist';
 import { LiveTicker } from './components/LiveTicker';
 import { OrderNotification } from './components/OrderNotification';
 import { AutoTradeGenerator } from './components/AutoTradeGenerator';
+import { AutoVideoGenerator } from './components/AutoVideoGenerator';
 import { 
   getStockQuote, 
   generateCandleData, 
@@ -21,9 +22,9 @@ import {
 import { fetchStockQuote, fetchCandleData } from './utils/yahooFinance';
 import { captureScreenshot } from './utils/screenshot';
 import { Portfolio, Trade, TimeRange, StockQuote, CandleData, OptionsContract } from './types/trading';
-import { Camera, Search, BarChart3, Wallet, Clock, Settings, Activity, Menu, X, Zap } from 'lucide-react';
+import { Camera, Search, BarChart3, Wallet, Clock, Settings, Activity, Menu, X, Zap, Film } from 'lucide-react';
 
-type TabView = 'chart' | 'options' | 'portfolio' | 'history' | 'autotrade';
+type TabView = 'chart' | 'options' | 'portfolio' | 'history' | 'autotrade' | 'autovideo';
 
 function App() {
   const [selectedSymbol, setSelectedSymbol] = useState('TSLA');
@@ -391,7 +392,6 @@ function App() {
 
             <div className="flex items-center gap-2">
               <Activity size={20} className="text-[#f0b90b]" />
-              <span className="font-bold text-sm hidden sm:inline">TradeView Pro</span>
             </div>
             
             <div className="relative hidden sm:block">
@@ -565,6 +565,18 @@ function App() {
               <Zap size={14} />
               Auto Trade
             </button>
+            <button
+              onClick={() => setActiveTab('autovideo')}
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === 'autovideo'
+                  ? 'border-[#f0b90b] text-[#f0b90b]'
+                  : 'border-transparent text-[#848e9c] hover:text-white'
+              }`}
+            >
+              <Film size={14} />
+              <span className="hidden sm:inline">Auto Video</span>
+              <span className="sm:hidden">Video</span>
+            </button>
 
             {activeTab === 'chart' && (
               <button
@@ -622,6 +634,15 @@ function App() {
                 <AutoTradeGenerator
                   onGenerateTrade={handleAutoTradeGenerate}
                   onUpdatePortfolio={handleAutoUpdatePortfolio}
+                />
+              </div>
+            )}
+            {activeTab === 'autovideo' && (
+              <div className="p-2 sm:p-4 max-w-2xl mx-auto">
+                <AutoVideoGenerator
+                  selectedSymbol={selectedSymbol}
+                  onSwitchToChart={() => setActiveTab('chart')}
+                  onSetCandleData={setCandleData}
                 />
               </div>
             )}

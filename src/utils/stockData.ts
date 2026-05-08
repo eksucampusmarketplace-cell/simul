@@ -1,21 +1,21 @@
 import { CandleData, StockQuote, OptionsContract } from '../types/trading';
 
 const POPULAR_STOCKS: Record<string, { name: string; basePrice: number }> = {
-  AAPL: { name: 'Apple Inc.', basePrice: 189.84 },
-  TSLA: { name: 'Tesla, Inc.', basePrice: 248.42 },
-  NVDA: { name: 'NVIDIA Corporation', basePrice: 875.28 },
-  MSFT: { name: 'Microsoft Corporation', basePrice: 420.72 },
-  AMZN: { name: 'Amazon.com, Inc.', basePrice: 185.07 },
-  META: { name: 'Meta Platforms, Inc.', basePrice: 493.50 },
-  GOOGL: { name: 'Alphabet Inc.', basePrice: 174.13 },
-  AMD: { name: 'Advanced Micro Devices', basePrice: 162.48 },
-  SPY: { name: 'SPDR S&P 500 ETF', basePrice: 523.96 },
-  QQQ: { name: 'Invesco QQQ Trust', basePrice: 449.34 },
-  NFLX: { name: 'Netflix, Inc.', basePrice: 628.15 },
-  DIS: { name: 'The Walt Disney Company', basePrice: 113.42 },
-  BA: { name: 'The Boeing Company', basePrice: 184.37 },
-  JPM: { name: 'JPMorgan Chase & Co.', basePrice: 198.54 },
-  V: { name: 'Visa Inc.', basePrice: 279.83 },
+  AAPL: { name: 'Apple Inc.', basePrice: 292.44 },
+  TSLA: { name: 'Tesla, Inc.', basePrice: 427.75 },
+  NVDA: { name: 'NVIDIA Corporation', basePrice: 215.55 },
+  MSFT: { name: 'Microsoft Corporation', basePrice: 416.61 },
+  AMZN: { name: 'Amazon.com, Inc.', basePrice: 272.47 },
+  META: { name: 'Meta Platforms, Inc.', basePrice: 609.38 },
+  GOOGL: { name: 'Alphabet Inc.', basePrice: 398.23 },
+  AMD: { name: 'Advanced Micro Devices', basePrice: 446.03 },
+  SPY: { name: 'SPDR S&P 500 ETF', basePrice: 737.76 },
+  QQQ: { name: 'Invesco QQQ Trust', basePrice: 710.28 },
+  NFLX: { name: 'Netflix, Inc.', basePrice: 87.50 },
+  DIS: { name: 'The Walt Disney Company', basePrice: 108.38 },
+  BA: { name: 'The Boeing Company', basePrice: 236.85 },
+  JPM: { name: 'JPMorgan Chase & Co.', basePrice: 301.22 },
+  V: { name: 'Visa Inc.', basePrice: 320.22 },
 };
 
 function seededRandom(seed: number): number {
@@ -146,7 +146,7 @@ export function generateOptionsChain(symbol: string, currentPrice: number): Opti
     strikes.push(Math.round((currentPrice + i * step) * 100) / 100);
   }
 
-  const expiries = ['2024-03-15', '2024-03-22', '2024-04-19', '2024-05-17'];
+  const expiries = ['2026-05-16', '2026-05-23', '2026-06-20', '2026-07-18'];
   
   expiries.forEach((expiry) => {
     strikes.forEach((strike, idx) => {
