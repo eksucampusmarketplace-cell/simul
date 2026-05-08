@@ -20,13 +20,14 @@ export function VideoRecorder({ targetElementId }: VideoRecorderProps) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      canvas.width = element.offsetWidth * 2;
-      canvas.height = element.offsetHeight * 2;
+      const scale = window.devicePixelRatio >= 2 ? 2 : 3;
+      canvas.width = element.offsetWidth * scale;
+      canvas.height = element.offsetHeight * scale;
 
       const stream = canvas.captureStream(30);
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'video/webm;codecs=vp9',
-        videoBitsPerSecond: 5000000,
+        videoBitsPerSecond: 8000000,
       });
 
       chunksRef.current = [];
