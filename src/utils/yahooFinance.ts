@@ -3,7 +3,7 @@ import { StockQuote, CandleData } from '../types/trading';
 const CORS_PROXIES = [
   'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url=',
-  '',
+  'https://api.codetabs.com/v1/proxy?quest=',
 ];
 const YAHOO_BASE = 'https://query2.finance.yahoo.com';
 
@@ -69,7 +69,7 @@ async function fetchWithProxies(targetUrl: string): Promise<Response | null> {
       const url = proxy ? `${proxy}${encodeURIComponent(targetUrl)}` : targetUrl;
       const response = await fetch(url, {
         headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(3000),
       });
       if (response.ok) {
         const text = await response.text();
