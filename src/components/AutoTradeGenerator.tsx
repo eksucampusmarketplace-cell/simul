@@ -18,6 +18,7 @@ export function AutoTradeGenerator({ onGenerateTrade, onUpdatePortfolio }: AutoT
   const [targetProfit, setTargetProfit] = useState(50000);
   const [tradeType, setTradeType] = useState<TradeType>('stock');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [generatedTrade, setGeneratedTrade] = useState<{
     symbol: string;
     name: string;
@@ -35,106 +36,101 @@ export function AutoTradeGenerator({ onGenerateTrade, onUpdatePortfolio }: AutoT
 
   const generateTrade = async () => {
     setIsGenerating(true);
-    
-    let realQuote: StockQuote | null = null;
+    setError(null);
+
     try {
-      realQuote = await fetchStockQuote(selectedStock);
-    } catch {
-      // fallback below
+      let realQuote: StockQuote | null = null;
+      try {
+        realQuote = await fetchStockQuote(selectedStock);
+      } catch {
+        // fallback below
+      }
+
+      const quote = realQuote || getStockQuote(selectedStock);
+      const currentPrice = quote.price;
+
+      if (tradeType === 'stock') {
+        const percentGain = 5 + Math.random() * 25;
+        const entryPrice = currentPrice / (1 + percentGain / 100);
+        const quantity = Math.round(targetProfit / (currentPrice - entryPrice));
+        const actualProfit = (currentPrice - entryPrice) * quantity;
+
+        const trade = {
+          symbol: selectedStock,
+          name: quote.name,
+          type: 'stock' as TradeType,
+          entryPrice: Math.round(entryPrice * 100) / 100,
+          exitPrice: currentPrice,
+          quantity,
+          profit: Math.round(actualProfit * 100) / 100,
+          percentGain: Math.round(percentGain * 100) / 100,
+        };
+
+        setGeneratedTrade(trade);
+        onUpdatePortfolio(selectedStock, quantity, trade.entryPrice, currentPrice, quote.name);
+        onGenerateTrade({
+          symbol: selectedStock,
+          type: 'BUY',
+          orderType: 'Market',
+          quantity,
+          price: trade.entryPrice,
+          total: trade.entryPrice * quantity,
+        }, actualProfit);
+
+      } else {
+        const isCall = tradeType === 'call';
+        const strikeOffset = isCall ? -5 + Math.random() * 10 : -10 + Math.random() * 5;
+        const strikePrice = Math.round((currentPrice + strikeOffset) / 0.5) * 0.5;
+
+        const intrinsicValue = isCall
+          ? Math.max(0, currentPrice - strikePrice)
+          : Math.max(0, strikePrice - currentPrice);
+        const timeValue = currentPrice * 0.02 + Math.random() * currentPrice * 0.03;
+        const currentPremium = intrinsicValue + timeValue;
+
+        const percentGain = 50 + Math.random() * 300;
+        const entryPremium = currentPremium / (1 + percentGain / 100);
+        const contracts = Math.round(targetProfit / ((currentPremium - entryPremium) * 100));
+        const actualProfit = (currentPremium - entryPremium) * contracts * 100;
+
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + Math.floor(Math.random() * 30) + 7);
+        const expiryStr = expiry.toISOString().split('T')[0];
+
+        const trade = {
+          symbol: selectedStock,
+          name: quote.name,
+          type: tradeType,
+          entryPrice: Math.round(entryPremium * 100) / 100,
+          exitPrice: Math.round(currentPremium * 100) / 100,
+          quantity: contracts,
+          profit: Math.round(actualProfit * 100) / 100,
+          percentGain: Math.round(percentGain * 100) / 100,
+          strikePrice,
+          expiry: expiryStr,
+          premium: Math.round(currentPremium * 100) / 100,
+          contracts,
+        };
+
+        setGeneratedTrade(trade);
+
+        const optionSymbol = `${selectedStock} $${strikePrice} ${isCall ? 'C' : 'P'} ${expiryStr}`;
+
+        onGenerateTrade({
+          symbol: optionSymbol,
+          type: 'BUY',
+          orderType: 'Market',
+          quantity: contracts,
+          price: trade.entryPrice * 100,
+          total: trade.entryPrice * contracts * 100,
+        }, actualProfit);
+      }
+    } catch (err) {
+      console.error('Auto trade generation failed:', err);
+      setError('Failed to generate trade. Please try again.');
+    } finally {
+      setIsGenerating(false);
     }
-    
-    const quote = realQuote || getStockQuote(selectedStock);
-    const currentPrice = quote.price;
-
-    if (tradeType === 'stock') {
-      // Calculate entry price to achieve target profit
-      // profit = (currentPrice - entryPrice) * quantity
-      // We want realistic quantities, so let's work backwards
-      const percentGain = 5 + Math.random() * 25; // 5-30% gain for realism
-      const entryPrice = currentPrice / (1 + percentGain / 100);
-      const quantity = Math.round(targetProfit / (currentPrice - entryPrice));
-      const actualProfit = (currentPrice - entryPrice) * quantity;
-
-      const trade = {
-        symbol: selectedStock,
-        name: quote.name,
-        type: 'stock' as TradeType,
-        entryPrice: Math.round(entryPrice * 100) / 100,
-        exitPrice: currentPrice,
-        quantity,
-        profit: Math.round(actualProfit * 100) / 100,
-        percentGain: Math.round(percentGain * 100) / 100,
-      };
-
-      setGeneratedTrade(trade);
-
-      // Update portfolio with this position
-      onUpdatePortfolio(selectedStock, quantity, trade.entryPrice, currentPrice, quote.name);
-
-      // Generate the trade entry
-      onGenerateTrade({
-        symbol: selectedStock,
-        type: 'BUY',
-        orderType: 'Market',
-        quantity,
-        price: trade.entryPrice,
-        total: trade.entryPrice * quantity,
-      }, actualProfit);
-
-    } else {
-      // Options trade (call or put)
-      const isCall = tradeType === 'call';
-      const strikeOffset = isCall ? -5 + Math.random() * 10 : -10 + Math.random() * 5;
-      const strikePrice = Math.round((currentPrice + strikeOffset) / 0.5) * 0.5;
-      
-      // Options premium calculation
-      const intrinsicValue = isCall 
-        ? Math.max(0, currentPrice - strikePrice) 
-        : Math.max(0, strikePrice - currentPrice);
-      const timeValue = currentPrice * 0.02 + Math.random() * currentPrice * 0.03;
-      const currentPremium = intrinsicValue + timeValue;
-      
-      // Entry premium was lower, calculate based on target profit
-      // profit = (currentPremium - entryPremium) * contracts * 100
-      const percentGain = 50 + Math.random() * 300; // 50-350% gain for options (they move more)
-      const entryPremium = currentPremium / (1 + percentGain / 100);
-      const contracts = Math.round(targetProfit / ((currentPremium - entryPremium) * 100));
-      const actualProfit = (currentPremium - entryPremium) * contracts * 100;
-
-      const expiry = new Date();
-      expiry.setDate(expiry.getDate() + Math.floor(Math.random() * 30) + 7);
-      const expiryStr = expiry.toISOString().split('T')[0];
-
-      const trade = {
-        symbol: selectedStock,
-        name: quote.name,
-        type: tradeType,
-        entryPrice: Math.round(entryPremium * 100) / 100,
-        exitPrice: Math.round(currentPremium * 100) / 100,
-        quantity: contracts,
-        profit: Math.round(actualProfit * 100) / 100,
-        percentGain: Math.round(percentGain * 100) / 100,
-        strikePrice,
-        expiry: expiryStr,
-        premium: Math.round(currentPremium * 100) / 100,
-        contracts,
-      };
-
-      setGeneratedTrade(trade);
-
-      const optionSymbol = `${selectedStock} $${strikePrice} ${isCall ? 'C' : 'P'} ${expiryStr}`;
-      
-      onGenerateTrade({
-        symbol: optionSymbol,
-        type: 'BUY',
-        orderType: 'Market',
-        quantity: contracts,
-        price: trade.entryPrice * 100,
-        total: trade.entryPrice * contracts * 100,
-      }, actualProfit);
-    }
-
-    setIsGenerating(false);
   };
 
   const profitPresets = [30000, 50000, 75000, 100000, 150000, 200000];
@@ -247,6 +243,13 @@ export function AutoTradeGenerator({ onGenerateTrade, onUpdatePortfolio }: AutoT
         )}
         {isGenerating ? 'Generating...' : 'Generate Trade'}
       </button>
+
+      {/* Error Message */}
+      {error && (
+        <div className="mt-2 p-2 bg-[#f6465d]/10 border border-[#f6465d]/30 rounded text-xs text-[#f6465d] text-center">
+          {error}
+        </div>
+      )}
 
       {/* Generated Trade Result */}
       {generatedTrade && (
